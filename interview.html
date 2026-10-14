@@ -597,7 +597,7 @@ function startRecording(){
   currentRecordStream = pickRecordSource();
   const mime = pickMimeType();
   try{
-    recorder = mime ? new MediaRecorder(currentRecordStream, {mimeType:mime}) : new MediaRecorder(currentRecordStream);
+    try{ recorder = mime ? new MediaRecorder(currentRecordStream, {mimeType:mime, videoBitsPerSecond:700000, audioBitsPerSecond:64000}) : new MediaRecorder(currentRecordStream, {videoBitsPerSecond:700000, audioBitsPerSecond:64000}); }catch(_br){ recorder = mime ? new MediaRecorder(currentRecordStream, {mimeType:mime}) : new MediaRecorder(currentRecordStream); } /* 2026-10-14: bitrate capped (~11 MB per 2-min answer instead of ~40 MB) */
   }catch(e){
     $('qErr').textContent = 'Tu navegador no soporta grabación de video. Intenta con Chrome actualizado.';
     return;
@@ -675,15 +675,16 @@ async function uploadAll(){
     $('uplBar').style.width = Math.round((i/total)*100)+'%';
     try{
       const ext = (a.blob.type||'').includes('mp4') ? 'mp4' : 'webm';
-      const path = `${KIT.position_id}/${KIT.kit_id}/${Date.now()}_${state.candidate.email.replace(/[^a-z0-9]/gi,'_')}_q${a.order}.${ext}`;
+      const path = a._path || (a._path = `${KIT.position_id}/${KIT.kit_id}/${Date.now()}_${state.candidate.email.replace(/[^a-z0-9]/gi,'_')}_q${a.order}.${ext}`);
       const {error} = await sb.storage.from('interview-videos').upload(path, a.blob, {contentType:a.blob.type||'video/webm', upsert:false});
-      if(error) throw error;
+      if(error && !/already exists|duplicate|409/i.test(String(error.message||error.statusCode||''))) throw error; /* same fixed path on retry: 'already exists' means a previous attempt succeeded */
       const {data:pub} = sb.storage.from('interview-videos').getPublicUrl(path);
       results.push({order:a.order, question:a.question, lang:a.lang, url:pub.publicUrl});
     }catch(e){
       $('uplStatus').textContent = 'Hubo un problema subiendo tu video, reintentando…';
-      i--; // simple retry same index
-      await new Promise(r=>setTimeout(r,1500));
+      i--; // simple retry same index (fixed path per answer: retries cannot create copies)
+      a._tries=(a._tries||0)+1;
+      await new Promise(r=>setTimeout(r,Math.min(1500*a._tries,10000)));
     }
   }
   $('uplBar').style.width='100%';
