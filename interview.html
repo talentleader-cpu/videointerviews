@@ -99,7 +99,7 @@ video.preview-plain{background:#0b1c2b;}
 .thumb-name{font-weight:700;color:var(--navy)}
 .step-note{font-size:12.5px;color:var(--muted);text-align:center;margin-top:10px}
 </style>
-</head>
+<style>.btn,button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}</style></head>
 <body>
 <header class="hero">
   <div class="wrap">
@@ -446,12 +446,7 @@ function startSegLoop(video){
   }
   let running = true;
   segRAF = {stop:false};
-  async function loop(){
-    if(segRAF.stop) return;
-    try{ await segmenter.send({image:video}); }
-    catch(e){ /* ignore single-frame errors */ }
-    requestAnimationFrame(loop);
-  }
+  async function loop(){ if(segRAF.stop) return; const WXM=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Mac/.test(navigator.platform)); const _t0=performance.now(); try{ await segmenter.send({image:video}); }catch(e){ /* ignore single-frame errors */ } const _dt=performance.now()-_t0; window.__segDt=(window.__segDt||_dt)*0.8+_dt*0.2; if(WXM && window.__segDt>160){ segRAF.stop=true; try{ drawFallback(video); }catch(_x){} return; } if(WXM){ setTimeout(function(){ requestAnimationFrame(loop); }, 80); } else { requestAnimationFrame(loop); } }
   loop();
 }
 function drawFallback(video){
@@ -609,9 +604,9 @@ function startRecording(){
 function stopRecording(){
   clearInterval(countdownInterval);
   clearTimeout(phaseTimer);
-  if(recorder && recorder.state!=='inactive') recorder.stop();
+  if(recorder && recorder.state!=='inactive'){ window.__wxStopPending=true; try{ recorder.stop(); }catch(_s){} setTimeout(function(){ if(window.__wxStopPending){ window.__wxStopPending=false; try{ onRecordingStopped(); }catch(_o){} } },4000); }
 }
-function onRecordingStopped(){
+function onRecordingStopped(){ window.__wxStopPending=false;
   const blob = new Blob(recordedChunks, {type: recordedChunks[0]?recordedChunks[0].type:'video/webm'});
   renderReview(blob);
 }
