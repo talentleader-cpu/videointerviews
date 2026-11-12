@@ -4,6 +4,8 @@
   window.__bgState = BG;
   var PRIMARY = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/';
   var ALT = 'https://unpkg.com/@mediapipe/selfie_segmentation/';
+  var IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
+  BG.slow = false; BG.everReady = false;
   var IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
   function el(id) { return document.getElementById(id); }
   function msgHost() { return el('setupErr') || el('qErr'); }
@@ -20,14 +22,15 @@
   function fail(why) {
     BG.failed = true; BG.ready = false;
     try { stopSegLoop(); } catch (_) {}
-    showMsg('No pudimos aplicar el fondo virtual de Wexpand, y es obligatorio para grabar tu entrevista. ' +
-      'Prueba: 1) pulsa "Reintentar fondo virtual", 2) recarga la página, 3) abre el enlace en Chrome (computadora o Android) actualizado, ' +
-      'sin extensiones que bloqueen contenido, y con buena conexión.' + (why ? ' (' + why + ')' : ''));
+    var how = IS_IOS
+      ? 'En iPhone/iPad: 1) pulsa "Reintentar fondo virtual", 2) actualiza iOS (15 o superior) y desactiva el Modo de bajo consumo, 3) cierra otras apps y pestañas y vuelve a abrir el enlace. En iPhone todos los navegadores usan el mismo motor, así que cambiar a Chrome no ayuda; si sigue fallando, abre el enlace en una computadora o en un teléfono Android, o escribe a tu reclutador.'
+      : 'Prueba: 1) pulsa "Reintentar fondo virtual", 2) recarga la página, 3) abre el enlace en Chrome actualizado (computadora o Android), sin extensiones que bloqueen contenido y con buena conexión. Si no se resuelve, escribe a tu reclutador.';
+    showMsg('No pudimos aplicar el fondo virtual de Wexpand, y es obligatorio para grabar tu entrevista. ' + how + (why ? ' (' + why + ')' : ''));
     addBtn();
   }
   function retry() {
     removeBtn(); showMsg(''); BG.failed = false; BG.ready = false; BG.errs = 0;
-    BG.altBase = !BG.altBase; segmenter = null;
+    BG.altBase = !BG.altBase; BG.slow = true; segmenter = null;
     try { mountStage(); } catch (_) {}
   }
   function loadLib() {
@@ -42,7 +45,7 @@
   }
   function onResults(results) {
     onSegResults(results);
-    BG.lastFrame = Date.now();
+    BG.lastFrame = Date.now(); BG.everReady = true;
     if (!BG.ready) { BG.ready = true; BG.failed = false; removeBtn(); showMsg(''); if (BG.loadTimer) { clearTimeout(BG.loadTimer); BG.loadTimer = null; } }
   }
   window.startSegLoop = function (video) {
@@ -66,7 +69,7 @@
         try { await segmenter.send({ image: video }); }
         catch (e) { BG.errs++; if (BG.errs > 40 && !BG.ready) { fail('error de segmentación'); return; } }
         if (token.stop) return;
-        if (IS_MOBILE) setTimeout(function () { requestAnimationFrame(loop); }, 60); else requestAnimationFrame(loop);
+        if (IS_MOBILE) setTimeout(function () { requestAnimationFrame(loop); }, BG.slow ? 140 : 60); else requestAnimationFrame(loop);
       })();
     });
   };
@@ -116,4 +119,14 @@
       else if (cameraStream && c.disabled) { c.disabled = false; c.textContent = 'Continuar →'; }
     }
   }, 150);
+  // Marca cada respuesta enviada como grabada con fondo obligatorio (el servidor lo guarda en bg_status)
+  try {
+    var _rpc = sb.rpc.bind(sb);
+    sb.rpc = function (name, args) {
+      if (name === 'submit_interview_public' && args && Array.isArray(args.p_answers) && BG.everReady) {
+        args = Object.assign({}, args, { p_answers: args.p_answers.map(function (a) { return Object.assign({}, a, { bg_enforced: true, bg_v: 1 }); }) });
+      }
+      return _rpc(name, args);
+    };
+  } catch (_) {}
 })();
