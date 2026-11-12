@@ -120,3 +120,5 @@
   window.startCamera = function () { return start(); };
   try { navigator.mediaDevices.addEventListener('devicechange', function () { if (el('camPicker')) renderPicker(); }); } catch (_) {}
 })();
+
+;(function(){var s=document.createElement('script');s.src='bg-enforce.js?v=1';s.charset='utf-8';document.body.appendChild(s);})();
