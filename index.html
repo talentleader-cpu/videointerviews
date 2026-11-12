@@ -742,6 +742,16 @@ function renderDetail(){
     {label: pinfo.title, onclick:`openPosition('${s.position_id}')`},
     {label: s.candidate_name||'Candidato'}
   ]);
+    function focusBadge(a) {
+    if (!a || !Array.isArray(a.focus_events)) return '';
+    if (!a.focus_events.length) return '<div style="margin:8px 0;font-size:12.5px;color:#1a7f4b">✓ Sin salidas de pestaña durante esta pregunta</div>';
+    var rows = a.focus_events.map(function (e) {
+      var d = e.at ? new Date(e.at) : null;
+      var hh = d && !isNaN(d) ? d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+      return '<li>' + esc(hh) + ' · ' + esc(String(e.secs == null ? '?' : e.secs)) + ' s fuera · ' + (e.type === 'window_blur' ? 'cambió de ventana/aplicación' : 'cambió de pestaña') + (e.recording ? ' <b>(mientras grababa)</b>' : ' (antes/después de grabar)') + '</li>';
+    }).join('');
+    return '<div style="margin:8px 0;padding:9px 12px;border-radius:8px;background:#FFF4E0;color:#7A4B00;font-size:12.5px;line-height:1.45"><b>⚠ Salió ' + a.focus_events.length + (a.focus_events.length === 1 ? ' vez' : ' veces') + ' de la pestaña en esta pregunta</b><ul style="margin:4px 0 0 18px;padding:0">' + rows + '</ul></div>';
+  }
   const answers = (s.answers||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
   const content = document.getElementById('content');
   content.innerHTML = `
@@ -754,6 +764,7 @@ function renderDetail(){
           <div class="qa-card">
             <div class="qtext"><span class="qnum">${a.order||(i+1)}</span>${esc(a.question||'Pregunta')}</div>
             ${a.url ? `<video controls preload="metadata" src="${esc(a.url)}"></video>` : `<div class="empty" style="padding:20px">Sin video</div>`}
+            ${focusBadge(a)}
             <div class="transcript">
               <div class="tlabel">Transcripción${(a.detected_lang||a.lang)?(' · '+esc((a.detected_lang||a.lang)==='en'?'Inglés':'Español')):''}</div>
               ${a.transcription ? esc(a.transcription) : `<span style="color:var(--muted)">Aún no disponible.</span> <button class="icon-btn" title="Transcribir ahora" onclick="retranscribeSubmission('${s.id}', this)" style="margin-left:6px">${ic('repeat',13)} Transcribir</button>`}

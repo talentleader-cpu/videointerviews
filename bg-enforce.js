@@ -137,6 +137,16 @@
   window.addEventListener('pagehide', function () { back(); });
 
   function focusFor(a) { var q = a && a.order; var mine = EV.filter(function (x) { return x.q === q; }); return { tab_switches: mine.length, focus_events: mine, focus_total: EV.length }; }
+  // Aviso de transparencia al candidato (paso de configuración)
+  setInterval(function () {
+    var c = el('setupContinue');
+    if (c && state.step === 'setup' && !el('focusNote')) {
+      var n = document.createElement('div'); n.id = 'focusNote';
+      n.style.cssText = 'margin:0 0 10px;font-size:12.5px;line-height:1.45;opacity:.85;text-align:center';
+      n.textContent = 'Aviso: durante la grabación registramos si sales de esta pestaña o ventana (momento y duración). No vemos qué abres.';
+      c.parentNode.insertBefore(n, c);
+    }
+  }, 400);
   // Marca cada respuesta enviada como grabada con fondo obligatorio (el servidor lo guarda en bg_status)
   try {
     var _rpc = sb.rpc.bind(sb);
