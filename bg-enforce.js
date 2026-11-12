@@ -120,51 +120,29 @@
     }
   }, 150);
 
-  // ---- Control de pestaña: salir de la pestaña mientras se graba descarta la toma ----
-  var REC = { active: false, discard: false }; var AWAY = 0; window.__tabAway = function () { return AWAY; };
-  var oStart2 = window.startRecording;
-  window.startRecording = function () {
-    var r = oStart2.apply(this, arguments);
-    try { REC.active = !!(recorder && recorder.state === 'recording'); } catch (_) { REC.active = false; }
-    REC.discard = false; return r;
-  };
-  var oStop = window.onRecordingStopped;
-  window.onRecordingStopped = function () {
-    REC.active = false;
-    if (REC.discard) {
-      REC.discard = false; window.__wxStopPending = false;
-      try { recordedChunks = []; } catch (_) {}
-      try { render('question'); } catch (_) {}
-      showAwayNotice();
-      return;
-    }
-    return oStop.apply(this, arguments);
-  };
-  function showAwayNotice() {
-    if (el('awayNotice')) return;
-    var d = document.createElement('div'); d.id = 'awayNotice';
-    d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(6,30,60,.92);display:flex;align-items:center;justify-content:center;padding:24px';
-    d.innerHTML = '<div style="background:#fff;color:#14213d;border-radius:14px;max-width:440px;padding:24px;text-align:center;font-family:inherit">' +
-      '<h2 style="margin:0 0 10px;font-size:20px">Saliste de la pestaña mientras grababas</h2>' +
-      '<p style="margin:0 0 16px;line-height:1.5">Para que tu entrevista sea válida debes mantener esta pestaña abierta y visible durante toda la grabación. Esta toma se descartó y no se contó como intento: vuelve a grabar la pregunta. Tu reclutador verá cuántas veces ocurrió (salidas: ' + AWAY + ').</p>' +
-      '<button id="awayOk" style="padding:10px 22px;border:0;border-radius:9px;background:#0653A1;color:#fff;font-weight:700;cursor:pointer">Entendido</button></div>';
-    document.body.appendChild(d); el('awayOk').onclick = function () { d.remove(); };
+  // ---- Monitoreo de foco: registra cuándo el candidato sale de la pestaña/ventana (no descarta nada) ----
+  var EV = []; var AW = null;
+  function qNow() { try { return state.qIndex + 1; } catch (_) { return null; } }
+  function isRec() { try { return !!(recorder && recorder.state === 'recording'); } catch (_) { return false; } }
+  function leave(type) { if (AW) return; AW = { t: Date.now(), type: type, rec: isRec(), q: qNow() }; }
+  function back() {
+    if (!AW) return;
+    EV.push({ q: AW.q, type: AW.type, recording: AW.rec, secs: Math.round((Date.now() - AW.t) / 1000), at: new Date(AW.t).toISOString() });
+    AW = null;
   }
-  function onAway() {
-    if (!REC.active || state.qIndex < 0) return;
-    AWAY++; REC.discard = true;
-    try { clearInterval(countdownInterval); clearTimeout(phaseTimer); } catch (_) {}
-    try { if (recorder && recorder.state !== 'inactive') recorder.stop(); else { REC.active = false; window.onRecordingStopped(); } } catch (_) { REC.active = false; }
-  }
-  document.addEventListener('visibilitychange', function () { if (document.hidden) onAway(); });
-  window.addEventListener('blur', function () { setTimeout(function () { if (REC.active && !document.hasFocus()) onAway(); }, 600); });
+  window.__focusEvents = function () { return EV.slice(); };
+  document.addEventListener('visibilitychange', function () { if (document.hidden) leave('tab_hidden'); else back(); });
+  window.addEventListener('blur', function () { setTimeout(function () { if (!document.hasFocus() && !document.hidden) leave('window_blur'); }, 600); });
+  window.addEventListener('focus', function () { back(); });
+  window.addEventListener('pagehide', function () { back(); });
 
+  function focusFor(a) { var q = a && a.order; var mine = EV.filter(function (x) { return x.q === q; }); return { tab_switches: mine.length, focus_events: mine, focus_total: EV.length }; }
   // Marca cada respuesta enviada como grabada con fondo obligatorio (el servidor lo guarda en bg_status)
   try {
     var _rpc = sb.rpc.bind(sb);
     sb.rpc = function (name, args) {
       if (name === 'submit_interview_public' && args && Array.isArray(args.p_answers) && BG.everReady) {
-        args = Object.assign({}, args, { p_answers: args.p_answers.map(function (a) { return Object.assign({}, a, { bg_enforced: true, bg_v: 1, tab_switches: AWAY }); }) });
+        args = Object.assign({}, args, { p_answers: args.p_answers.map(function (a) { return Object.assign({}, a, { bg_enforced: true, bg_v: 1 }, focusFor(a)); }) });
       }
       return _rpc(name, args);
     };
