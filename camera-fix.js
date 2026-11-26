@@ -1,3 +1,26 @@
+/* Wexpand video interview - audio en iPhone (2026-11-26)
+   Problema: candidatas en iPhone reportan que "no se escucha el audio" al grabar/revisar.
+   Causa probable: mientras el microfono sigue capturando, iOS baja/enruta el volumen de reproduccion (la revision de la toma).
+   Solucion: mientras la pantalla de revision esta abierta (hay un <video controls>) se apaga el audio de captura
+   (track.enabled=false) y se reactiva al salir de ella. Sin envolver funciones de la pagina; todo en try/catch. */
+(function () {
+  var last = null;
+  function micOn(on) {
+    try {
+      var s = (typeof cameraStream !== 'undefined') ? cameraStream : null;
+      if (!s || !s.getAudioTracks) return;
+      s.getAudioTracks().forEach(function (t) { try { if (t.enabled !== !!on) t.enabled = !!on; } catch (_) {} });
+    } catch (_) {}
+  }
+  setInterval(function () {
+    try {
+      var inReview = !!document.querySelector('video[controls]');
+      if (inReview !== last) { last = inReview; micOn(!inReview); }
+      else if (!inReview) micOn(true);
+    } catch (_) {}
+  }, 300);
+})();
+
 /* Wexpand video interview - camera/mic detection fix (2026-10-14)
    Replaces startCamera(): progressive fallbacks, device picker, friendly errors, in-app browser warning. */
 (function () {
