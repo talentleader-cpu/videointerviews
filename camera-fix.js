@@ -1,3 +1,32 @@
+
+
+/* Wexpand video interview - audio en iPhone (2026-11-26)
+   Problema: candidatas en iPhone reportan que "no se escucha el audio" al grabar/revisar.
+   Causa probable: mientras el microfono sigue capturando, iOS baja/enruta el volumen de reproduccion (la revision de la toma).
+   Solucion: al abrir la pantalla de revision se apaga el audio de captura (track.enabled=false) y se reactiva
+   al volver a una pregunta o antes de grabar. Todo envuelto en try/catch: si algo falla, se comporta como antes. */
+(function () {
+  function micOn(on) {
+    try {
+      var s = (typeof cameraStream !== 'undefined') ? cameraStream : null;
+      if (!s || !s.getAudioTracks) return;
+      s.getAudioTracks().forEach(function (t) { try { t.enabled = !!on; } catch (_) {} });
+    } catch (_) {}
+  }
+  function wrap(name, before) {
+    try {
+      var orig = window[name];
+      if (typeof orig !== 'function' || orig.__wxAudioWrapped) return;
+      var w = function () { try { before.apply(null, arguments); } catch (_) {} return orig.apply(this, arguments); };
+      w.__wxAudioWrapped = true;
+      window[name] = w;
+    } catch (_) {}
+  }
+  wrap('renderReview', function () { micOn(false); });
+  wrap('startRecording', function () { micOn(true); });
+  wrap('render', function (name) { if (name === 'question' || name === 'practiceIntro') micOn(true); });
+  wrap('stopCamera', function () { micOn(true); });
+})();
 /* Wexpand video interview - camera/mic detection fix (2026-10-14)
    Replaces startCamera(): progressive fallbacks, device picker, friendly errors, in-app browser warning. */
 (function () {
